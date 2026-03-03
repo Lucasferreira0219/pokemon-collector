@@ -181,12 +181,14 @@ app.get(`${BASE_PATH}/api/sets/:id/cards`, async (req, res) => {
     const sd = await r.json();
     if (!sd?.cards) return res.json({ results: [], total: 0 });
     const serieId = sd.serie?.id || '';
+    const setLogo = sd.logo ? sd.logo + '.webp' : '';
     const results = sd.cards.map(c => ({
       card_id: c.id || '',
       name: c.name || 'Unknown',
       number: c.localId || '',
       set_id: sd.id || '',
       set_name: sd.name || '',
+      set_logo: setLogo,
       image_small: serieId
         ? `https://assets.tcgdex.net/en/${serieId}/${sd.id}/${c.localId}/low.webp`
         : (c.image ? `${c.image}/low.webp` : ''),
@@ -439,9 +441,9 @@ app.get(`${BASE_PATH}/api/cards/:id/tags`, (req, res) => {
 
 // ============ FILTERS ============
 app.get(`${BASE_PATH}/api/filters`, (req, res) => {
-  const sets = db.prepare(`SELECT DISTINCT set_id, set_name,
-    json_extract(full_data, '$.set_logo') as set_logo,
-    json_extract(full_data, '$.set_total') as set_total,
+  const sets = db.prepare(`SELECT set_id, set_name,
+    MAX(json_extract(full_data, '$.set_logo')) as set_logo,
+    MAX(json_extract(full_data, '$.set_total')) as set_total,
     COUNT(*) as card_count, COALESCE(SUM(quantity),0) as total_cards
     FROM cards WHERE set_name != '' GROUP BY set_id ORDER BY set_name ASC`).all();
   const artists = db.prepare(`SELECT DISTINCT json_extract(full_data, '$.illustrator') as illustrator, COUNT(*) as card_count
