@@ -874,16 +874,17 @@
       box-shadow:0 2px 6px rgba(0,0,0,.4); letter-spacing:-.3px;
     }
     .search-heart {
-      position:absolute; bottom:8px; right:8px;
-      width:26px; height:26px; border-radius:50%;
-      background:rgba(12,15,26,.75); border:1.5px solid rgba(255,255,255,.12);
-      backdrop-filter:blur(4px);
+      position:absolute; bottom:7px; right:7px;
+      width:28px; height:28px; border-radius:50%;
+      background:rgba(10,12,22,.88); border:1.5px solid rgba(255,255,255,.38);
+      backdrop-filter:blur(6px);
       display:flex; align-items:center; justify-content:center;
-      cursor:pointer; font-size:.88em; color:rgba(255,255,255,.22);
+      cursor:pointer; font-size:1em; color:rgba(255,255,255,.7);
       transition:all .15s; z-index:3; line-height:1;
+      box-shadow:0 2px 8px rgba(0,0,0,.5);
     }
-    .search-heart:hover { color:#f87171; border-color:rgba(244,100,110,.5); background:rgba(244,100,110,.12); transform:scale(1.12); }
-    .search-heart.active { color:#f87171; border-color:rgba(244,100,110,.45); background:rgba(244,100,110,.1); }
+    .search-heart:hover { color:#f87171; border-color:rgba(244,100,110,.75); background:rgba(244,100,110,.22); transform:scale(1.12); }
+    .search-heart.active { color:#f87171; border-color:rgba(244,100,110,.65); background:rgba(244,100,110,.18); }
 
     /* ==================== BATCH ADD MODAL ==================== */
     .batch-modal {
@@ -1941,13 +1942,14 @@
       const inWishlist = owned?.wishlist;
       const inCollection = owned && !owned.wishlist;
       const p = c.pricing || {};
-      const sugPrice = p.averageSellPrice || p.lowPrice || p.trendPrice || null;
+      const sugPrice = p.averageSellPrice || p.lowPrice || p.trendPrice || p.marketPrice ||
+        Object.values(p).find(v => typeof v === 'number' && v > 0) || null;
       return `<div class="card-item${isSelected ? ' search-selected' : ''}" onclick="openAdd(lastSearchResults[${i}])">
         <div class="card-check" onclick="toggleSearchCard(${i},event)">${isSelected ? '✓' : '○'}</div>
         ${inCollection ? `<div class="search-owned-badge" title="Na coleção (${owned.quantity}×)">✓ ${owned.quantity}×</div>` : ''}
         <div class="card-img-wrap">
           <img src="${c.image_small}" alt="${c.name}" loading="lazy">
-          ${!inCollection ? `<button class="search-heart${inWishlist ? ' active' : ''}" onclick="toggleSearchWishlist(${i},event)" title="${inWishlist ? 'Remover da lista de desejos' : 'Adicionar à lista de desejos'}">♥</button>` : ''}
+          <button class="search-heart${inWishlist ? ' active' : ''}" onclick="toggleSearchWishlist(${i},event)" title="${inWishlist ? 'Remover da lista de desejos' : 'Adicionar à lista de desejos'}">♥</button>
         </div>
         <div class="card-body">
           <h4>${c.name}</h4>
@@ -1970,10 +1972,12 @@
           toast('💔 Removido da lista de desejos');
         } else {
           const p = c.pricing || {};
-          const sugPrice = p.averageSellPrice || p.lowPrice || p.trendPrice || null;
+          const sugPrice = p.averageSellPrice || p.lowPrice || p.trendPrice || p.marketPrice ||
+            Object.values(p).find(v => typeof v === 'number' && v > 0) || null;
+          const types = Array.isArray(c.types) ? c.types.join(', ') : (c.types || '');
           const resp = await fetch(`${API}/cards`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...c, quantity: 1, wishlist: 1 })
+            body: JSON.stringify({ ...c, types, quantity: 1, wishlist: 1 })
           });
           if (!resp.ok) { toast('❌ Erro ao adicionar', true); return; }
           const saved = await resp.json();

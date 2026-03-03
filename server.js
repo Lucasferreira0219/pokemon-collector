@@ -308,7 +308,8 @@ app.get(`${BASE_PATH}/api/cards`, (req, res) => {
 
 app.post(`${BASE_PATH}/api/cards`, (req, res) => {
   try {
-    const { card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, quantity, purchase_id, price, wishlist } = req.body;
+    const { card_id, name, number, set_id, set_name, rarity, image_small, image_large, quantity, purchase_id, price, wishlist } = req.body;
+    const types = Array.isArray(req.body.types) ? req.body.types.join(', ') : (req.body.types || '');
     if (!card_id) return res.status(400).json({ error: 'card_id obrigatório' });
     const fullData = JSON.stringify(req.body);
     const isWishlist = wishlist ? 1 : 0;
