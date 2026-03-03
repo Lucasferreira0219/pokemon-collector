@@ -103,6 +103,54 @@ try {
   db.exec(`ALTER TABLE cards ADD COLUMN wishlist INTEGER NOT NULL DEFAULT 0`);
 } catch(e) {} // column already exists
 
+// Migration: remove collection_id column (from old schema)
+try {
+  // Check if collection_id exists
+  const cols = db.prepare("PRAGMA table_info(cards)").all();
+  const hasCollectionId = cols.some(c => c.name === 'collection_id');
+  
+  if (hasCollectionId) {
+    console.log('🔄 Migration: Removing collection_id column...');
+    db.exec(`
+      BEGIN TRANSACTION;
+      
+      CREATE TABLE cards_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        card_id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        number TEXT NOT NULL,
+        set_id TEXT NOT NULL,
+        set_name TEXT NOT NULL,
+        rarity TEXT,
+        types TEXT,
+        image_small TEXT,
+        image_large TEXT,
+        full_data TEXT DEFAULT '{}',
+        quantity INTEGER DEFAULT 1,
+        language TEXT NOT NULL DEFAULT 'pt',
+        value REAL NOT NULL DEFAULT 0,
+        paid REAL NOT NULL DEFAULT 0,
+        wishlist INTEGER NOT NULL DEFAULT 0,
+        added_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      INSERT INTO cards_new (id, card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, full_data, quantity, language, value, paid, wishlist, added_at)
+      SELECT id, card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, full_data, quantity, 
+             COALESCE(language, 'pt'), COALESCE(value, 0), COALESCE(paid, 0), COALESCE(wishlist, 0), added_at
+      FROM cards;
+      
+      DROP TABLE cards;
+      ALTER TABLE cards_new RENAME TO cards;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_card_id ON cards(card_id);
+      
+      COMMIT;
+    `);
+    console.log('✅ Migration complete: collection_id removed');
+  }
+} catch(e) {
+  console.error('❌ Migration failed:', e.message);
+}
+
 // Migration: move card_purchases manual prices to cards.paid
 try {
   const manualPurchases = db.prepare(
