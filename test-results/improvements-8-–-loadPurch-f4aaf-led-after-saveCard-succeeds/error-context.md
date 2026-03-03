@@ -1,0 +1,56 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - img [ref=e5]
+      - generic [ref=e8]:
+        - text: Pokédex
+        - text: Collector
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: Cartas únicas
+        - generic [ref=e12]: "14"
+      - generic [ref=e13]:
+        - generic [ref=e14]: Total cartas
+        - generic [ref=e15]: "19"
+      - generic [ref=e16]:
+        - generic [ref=e17]: Sets
+        - generic [ref=e18]: "13"
+      - generic [ref=e19]:
+        - generic [ref=e20]: Valor
+        - generic [ref=e21]: R$ 941.00
+      - generic [ref=e22]:
+        - generic [ref=e23]: Investido
+        - generic [ref=e24]: R$ 531.00
+    - generic [ref=e25]:
+      - button "Coleção" [ref=e26] [cursor=pointer]:
+        - img [ref=e28]
+        - generic [ref=e31]: Coleção
+      - button "Buscar" [active] [ref=e32] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: Buscar
+      - button "Compras" [ref=e38] [cursor=pointer]:
+        - img [ref=e40]
+        - generic [ref=e43]: Compras
+      - button "Stats" [ref=e44] [cursor=pointer]:
+        - img [ref=e46]
+        - generic [ref=e48]: Stats
+      - button "Tags" [ref=e49] [cursor=pointer]:
+        - img [ref=e51]
+        - generic [ref=e55]: Tags
+  - generic [ref=e57]:
+    - generic [ref=e58]:
+      - button "Carta" [ref=e59] [cursor=pointer]:
+        - img [ref=e60]
+        - text: Carta
+      - button "Coleção" [ref=e63] [cursor=pointer]:
+        - img [ref=e64]
+        - text: Coleção
+    - generic [ref=e69]:
+      - 'textbox "Buscar carta por nome, número (ex: 25/165)..." [ref=e70]': Venusaur
+      - button "Buscar" [ref=e71] [cursor=pointer]:
+        - img [ref=e72]
+        - text: Buscar
+```

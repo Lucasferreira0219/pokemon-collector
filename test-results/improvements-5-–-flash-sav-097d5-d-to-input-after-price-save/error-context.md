@@ -1,0 +1,123 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - img [ref=e5]
+      - generic [ref=e8]:
+        - text: Pokédex
+        - text: Collector
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: Cartas únicas
+        - generic [ref=e12]: "15"
+      - generic [ref=e13]:
+        - generic [ref=e14]: Total cartas
+        - generic [ref=e15]: "20"
+      - generic [ref=e16]:
+        - generic [ref=e17]: Sets
+        - generic [ref=e18]: "14"
+      - generic [ref=e19]:
+        - generic [ref=e20]: Valor
+        - generic [ref=e21]: R$ 941.00
+      - generic [ref=e22]:
+        - generic [ref=e23]: Investido
+        - generic [ref=e24]: R$ 531.00
+    - generic [ref=e25]:
+      - button "Coleção" [ref=e26] [cursor=pointer]:
+        - img [ref=e28]
+        - generic [ref=e31]: Coleção
+      - button "Buscar" [ref=e32] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: Buscar
+      - button "Compras" [ref=e38] [cursor=pointer]:
+        - img [ref=e40]
+        - generic [ref=e43]: Compras
+      - button "Stats" [ref=e44] [cursor=pointer]:
+        - img [ref=e46]
+        - generic [ref=e48]: Stats
+      - button "Tags" [ref=e49] [cursor=pointer]:
+        - img [ref=e51]
+        - generic [ref=e55]: Tags
+  - generic [ref=e57]:
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - heading "Coleções" [level=2] [ref=e60]:
+          - img [ref=e61]
+          - text: Coleções
+        - generic [ref=e64]:
+          - generic [ref=e65]: R$ 941.00
+          - button "Ver todas (18) ▾" [ref=e66] [cursor=pointer]
+      - generic [ref=e67]:
+        - generic [ref=e68] [cursor=pointer]:
+          - img [ref=e70]
+          - generic [ref=e72]: Todas
+        - generic "Arceus" [ref=e73] [cursor=pointer]:
+          - img "Arceus" [ref=e74]
+          - generic [ref=e75]:
+            - generic [ref=e76]: "1"
+            - generic [ref=e77]: / 99
+        - generic "Base Set 2" [ref=e80] [cursor=pointer]:
+          - img "Base Set 2" [ref=e81]
+          - generic [ref=e82]:
+            - generic [ref=e83]: "1"
+            - generic [ref=e84]: / 130
+        - generic "Celebrations" [ref=e87] [cursor=pointer]:
+          - img "Celebrations" [ref=e88]
+          - generic [ref=e89]:
+            - generic [ref=e90]: "1"
+            - generic [ref=e91]: / 25
+        - generic "Evolving Skies" [ref=e94] [cursor=pointer]:
+          - img "Evolving Skies" [ref=e95]
+          - generic [ref=e96]:
+            - generic [ref=e97]: "1"
+            - generic [ref=e98]: / 203
+        - generic "Fossil" [ref=e100] [cursor=pointer]:
+          - img "Fossil" [ref=e101]
+          - generic [ref=e102]:
+            - generic [ref=e103]: "1"
+            - generic [ref=e104]: / 62
+        - generic "Gym Challenge" [ref=e107] [cursor=pointer]:
+          - img "Gym Challenge" [ref=e108]
+          - generic [ref=e109]:
+            - generic [ref=e110]: "1"
+            - generic [ref=e111]: / 132
+        - generic "Legend Maker" [ref=e114] [cursor=pointer]:
+          - img "Legend Maker" [ref=e115]
+          - generic [ref=e116]:
+            - generic [ref=e117]: "1"
+            - generic [ref=e118]: / 92
+        - generic "Legendary Collection" [ref=e121] [cursor=pointer]:
+          - img "Legendary Collection" [ref=e122]
+          - generic [ref=e123]:
+            - generic [ref=e124]: "1"
+            - generic [ref=e125]: / 110
+        - generic "Majestic Dawn" [ref=e128] [cursor=pointer]:
+          - img "Majestic Dawn" [ref=e129]
+          - generic [ref=e130]:
+            - generic [ref=e131]: "1"
+            - generic [ref=e132]: / 100
+        - generic "Neo Discovery" [ref=e135] [cursor=pointer]:
+          - img "Neo Discovery" [ref=e136]
+          - generic [ref=e137]:
+            - generic [ref=e138]: "1"
+            - generic [ref=e139]: / 75
+    - generic [ref=e143]:
+      - generic [ref=e144]:
+        - img [ref=e146]
+        - textbox "Buscar na coleção..." [ref=e149]
+      - combobox [ref=e150] [cursor=pointer]:
+        - option "Recentes" [selected]
+        - option "Nome A-Z"
+        - option "Por Set"
+        - option "Raridade"
+        - option "Valor"
+      - button "Filtros" [ref=e151] [cursor=pointer]:
+        - img [ref=e152]
+        - text: Filtros
+    - generic [ref=e154]:
+      - img [ref=e156]
+      - paragraph [ref=e159]: Nenhuma carta encontrada
+      - generic [ref=e160]: Adicione cartas na aba Buscar
+```

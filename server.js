@@ -98,6 +98,11 @@ try {
   db.exec(`ALTER TABLE cards ADD COLUMN paid REAL NOT NULL DEFAULT 0`);
 } catch(e) {} // column already exists
 
+// Migration: add wishlist column
+try {
+  db.exec(`ALTER TABLE cards ADD COLUMN wishlist INTEGER NOT NULL DEFAULT 0`);
+} catch(e) {} // column already exists
+
 // Migration: move card_purchases manual prices to cards.paid
 try {
   const manualPurchases = db.prepare(
@@ -107,6 +112,45 @@ try {
     db.prepare('UPDATE cards SET paid = ? WHERE id = ? AND paid = 0').run(mp.total, mp.card_id);
   }
 } catch(e) {}
+
+// ============ SETS ============
+let _setsCache = null, _setsCacheTime = 0;
+
+app.get(`${BASE_PATH}/api/sets`, async (req, res) => {
+  try {
+    if (_setsCache && Date.now() - _setsCacheTime < 3600000) return res.json(_setsCache);
+    const r = await fetch(`${TCGDEX_API}/sets`);
+    _setsCache = await r.json();
+    _setsCacheTime = Date.now();
+    res.json(_setsCache);
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch sets' }); }
+});
+
+app.get(`${BASE_PATH}/api/sets/:id/cards`, async (req, res) => {
+  try {
+    const r = await fetch(`${TCGDEX_API}/sets/${req.params.id}`);
+    if (!r.ok) return res.status(404).json({ error: 'Set not found' });
+    const sd = await r.json();
+    if (!sd?.cards) return res.json({ results: [], total: 0 });
+    const serieId = sd.serie?.id || '';
+    const results = sd.cards.map(c => ({
+      card_id: c.id || '',
+      name: c.name || 'Unknown',
+      number: c.localId || '',
+      set_id: sd.id || '',
+      set_name: sd.name || '',
+      image_small: serieId
+        ? `https://assets.tcgdex.net/en/${serieId}/${sd.id}/${c.localId}/low.webp`
+        : (c.image ? `${c.image}/low.webp` : ''),
+      image_large: serieId
+        ? `https://assets.tcgdex.net/en/${serieId}/${sd.id}/${c.localId}/high.webp`
+        : (c.image ? `${c.image}/high.webp` : ''),
+      rarity: '',
+      types: [],
+    }));
+    res.json({ results, total: results.length, set: { id: sd.id, name: sd.name, cardCount: sd.cardCount } });
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch set cards' }); }
+});
 
 // ============ SEARCH ============
 app.get(`${BASE_PATH}/api/search`, async (req, res) => {
@@ -214,8 +258,8 @@ app.delete(`${BASE_PATH}/api/tags/:id`, (req, res) => {
 
 // ============ CARDS ============
 app.get(`${BASE_PATH}/api/cards`, (req, res) => {
-  const { search, sort, set_id, artist, type, rarity, tag_id } = req.query;
-  let query = `SELECT c.*, 
+  const { search, sort, set_id, artist, type, rarity, tag_id, wishlist, language, limit = 60, offset = 0 } = req.query;
+  let query = `SELECT c.*,
     GROUP_CONCAT(ct.tag_id) as tag_ids,
     COALESCE(SUM(cp.price * cp.quantity), 0) as total_paid
     FROM cards c
@@ -236,6 +280,9 @@ app.get(`${BASE_PATH}/api/cards`, (req, res) => {
   if (artist) { wheres.push("json_extract(c.full_data, '$.illustrator') = ?"); params.push(artist); }
   if (type) { wheres.push('c.types LIKE ?'); params.push(`%${type}%`); }
   if (rarity) { wheres.push('c.rarity = ?'); params.push(rarity); }
+  if (language) { wheres.push('c.language = ?'); params.push(language); }
+  if (wishlist === '1') { wheres.push('c.wishlist = 1'); }
+  else if (wishlist === '0') { wheres.push('c.wishlist = 0'); }
 
   if (wheres.length) query += ' WHERE ' + wheres.join(' AND ');
   query += ' GROUP BY c.id';
@@ -245,27 +292,34 @@ app.get(`${BASE_PATH}/api/cards`, (req, res) => {
     value:'total_paid DESC' };
   query += ` ORDER BY ${sortMap[sort] || sortMap.added}`;
 
+  const countQuery = `SELECT COUNT(DISTINCT c.id) as t FROM cards c LEFT JOIN card_tags ct ON ct.card_id = c.id LEFT JOIN card_purchases cp ON cp.card_id = c.id${wheres.length ? ' WHERE ' + wheres.join(' AND ') : ''}`;
+  const total = db.prepare(countQuery).get(...params).t;
+
+  query += ` LIMIT ? OFFSET ?`;
+  params.push(parseInt(limit), parseInt(offset));
+
   const cards = db.prepare(query).all(...params).map(card => {
     try { card.full_data = JSON.parse(card.full_data || '{}'); } catch { card.full_data = {}; }
     card.tag_ids = card.tag_ids ? card.tag_ids.split(',').map(Number) : [];
     return card;
   });
-  res.json(cards);
+  res.json({ cards, total });
 });
 
 app.post(`${BASE_PATH}/api/cards`, (req, res) => {
-  const { card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, quantity, purchase_id, price } = req.body;
+  const { card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, quantity, purchase_id, price, wishlist } = req.body;
   const fullData = JSON.stringify(req.body);
+  const isWishlist = wishlist ? 1 : 0;
 
   const existing = db.prepare('SELECT * FROM cards WHERE card_id = ?').get(card_id);
   let cardDbId;
-  
+
   if (existing) {
     db.prepare('UPDATE cards SET quantity = quantity + ?, full_data = ? WHERE id = ?').run(quantity||1, fullData, existing.id);
     cardDbId = existing.id;
   } else {
-    const r = db.prepare(`INSERT INTO cards (collection_id, card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, full_data, quantity)
-      VALUES (1,?,?,?,?,?,?,?,?,?,?,?)`).run(card_id, name, number, set_id, set_name, rarity||'', types||'', image_small||'', image_large||'', fullData, quantity||1);
+    const r = db.prepare(`INSERT INTO cards (card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, full_data, quantity, wishlist)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(card_id, name, number, set_id, set_name, rarity||'', types||'', image_small||'', image_large||'', fullData, quantity||1, isWishlist);
     cardDbId = r.lastInsertRowid;
   }
 
@@ -293,12 +347,13 @@ app.post(`${BASE_PATH}/api/cards`, (req, res) => {
 });
 
 app.patch(`${BASE_PATH}/api/cards/:id`, (req, res) => {
-  const { quantity, language, value, paid } = req.body;
+  const { quantity, language, value, paid, wishlist } = req.body;
   if (quantity !== undefined && quantity <= 0) { db.prepare('DELETE FROM card_tags WHERE card_id = ?').run(req.params.id); db.prepare('DELETE FROM cards WHERE id = ?').run(req.params.id); return res.json({ deleted: true }); }
   if (quantity !== undefined) db.prepare('UPDATE cards SET quantity = ? WHERE id = ?').run(quantity, req.params.id);
   if (language) db.prepare('UPDATE cards SET language = ? WHERE id = ?').run(language, req.params.id);
   if (value !== undefined) db.prepare('UPDATE cards SET value = ? WHERE id = ?').run(parseFloat(value) || 0, req.params.id);
   if (paid !== undefined) db.prepare('UPDATE cards SET paid = ? WHERE id = ?').run(parseFloat(paid) || 0, req.params.id);
+  if (wishlist !== undefined) db.prepare('UPDATE cards SET wishlist = ? WHERE id = ?').run(wishlist ? 1 : 0, req.params.id);
   res.json(db.prepare('SELECT * FROM cards WHERE id = ?').get(req.params.id));
 });
 
@@ -344,35 +399,31 @@ app.get(`${BASE_PATH}/api/filters`, (req, res) => {
 
 // ============ STATS ============
 app.get(`${BASE_PATH}/api/stats`, (req, res) => {
-  // Valor pago em cartas (campo paid de cada carta)
   const collectionPaid = db.prepare(
-    'SELECT COALESCE(SUM(paid),0) as t FROM cards'
+    'SELECT COALESCE(SUM(paid),0) as t FROM cards WHERE wishlist = 0'
   ).get().t;
 
-  // Valor de mercado da coleção (campo value de cada carta * quantity)
   const collectionValue = db.prepare(
-    'SELECT COALESCE(SUM(value * quantity),0) as t FROM cards'
+    'SELECT COALESCE(SUM(value * quantity),0) as t FROM cards WHERE wishlist = 0'
   ).get().t;
 
-  // Investido em boosters/bundles = soma da tabela purchases
   const boosterSpent = db.prepare('SELECT COALESCE(SUM(price),0) as t FROM purchases').get().t;
 
-  // Valor de mercado das cartas que saíram de boosters
   const boosterCardsValue = db.prepare(
-    `SELECT COALESCE(SUM(c.value * cp.quantity),0) as t 
-     FROM card_purchases cp 
-     JOIN cards c ON c.id = cp.card_id 
-     WHERE cp.purchase_id IS NOT NULL`
+    `SELECT COALESCE(SUM(c.value * cp.quantity),0) as t
+     FROM card_purchases cp
+     JOIN cards c ON c.id = cp.card_id
+     WHERE cp.purchase_id IS NOT NULL AND c.wishlist = 0`
   ).get().t;
 
-  // Lucro/perda = valor cartas de booster - investido em boosters
   const boosterProfit = boosterCardsValue - boosterSpent;
 
   res.json({
-    totalCards: db.prepare('SELECT COALESCE(SUM(quantity),0) as t FROM cards').get().t,
-    uniqueCards: db.prepare('SELECT COUNT(*) as t FROM cards').get().t,
-    sets: db.prepare('SELECT COUNT(DISTINCT set_name) as t FROM cards').get().t,
+    totalCards: db.prepare('SELECT COALESCE(SUM(quantity),0) as t FROM cards WHERE wishlist = 0').get().t,
+    uniqueCards: db.prepare('SELECT COUNT(*) as t FROM cards WHERE wishlist = 0').get().t,
+    sets: db.prepare('SELECT COUNT(DISTINCT set_name) as t FROM cards WHERE wishlist = 0').get().t,
     tags: db.prepare('SELECT COUNT(*) as t FROM tags').get().t,
+    wishlistCount: db.prepare('SELECT COUNT(*) as t FROM cards WHERE wishlist = 1').get().t,
     collectionPaid,
     collectionValue,
     boosterSpent,
