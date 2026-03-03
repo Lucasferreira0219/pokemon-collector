@@ -1,0 +1,13 @@
+node_modules/
+pokemon.db
+pokemon.db-shm
+pokemon.db-wal
+*.log
+.env
+.DS_Store
+*.bak
+*.backup
+*.py
+index_broken.html
+index_new.html
+simple.html
