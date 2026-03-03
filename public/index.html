@@ -844,7 +844,10 @@
       padding:11px 14px; margin-bottom:14px;
       background:var(--surface-2); border:1px solid var(--gold-border);
       border-radius:var(--radius); animation:slideDown .2s ease;
+      position:sticky; bottom:80px; z-index:50;
+      box-shadow:0 4px 20px rgba(0,0,0,.5);
     }
+    @media (min-width:900px) { .search-action-bar { bottom:16px; } }
     .sab-count { font-size:.88em; font-weight:700; color:var(--gold); }
     .sab-actions { display:flex; gap:8px; }
     .card-item.search-selected {
@@ -861,6 +864,26 @@
     }
     .card-check:hover { border-color:rgba(255,255,255,.45); color:rgba(255,255,255,.45); }
     .card-item.search-selected .card-check { background:var(--gold); border-color:var(--gold); color:#000; }
+    .search-owned-badge {
+      position:absolute; top:8px; left:8px;
+      background:rgba(45,212,162,.92); color:#000;
+      min-width:22px; height:22px; border-radius:11px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:.6em; font-weight:900; padding:0 5px;
+      backdrop-filter:blur(4px); z-index:2; white-space:nowrap;
+      box-shadow:0 2px 6px rgba(0,0,0,.4); letter-spacing:-.3px;
+    }
+    .search-heart {
+      position:absolute; bottom:8px; right:8px;
+      width:26px; height:26px; border-radius:50%;
+      background:rgba(12,15,26,.75); border:1.5px solid rgba(255,255,255,.12);
+      backdrop-filter:blur(4px);
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; font-size:.88em; color:rgba(255,255,255,.22);
+      transition:all .15s; z-index:3; line-height:1;
+    }
+    .search-heart:hover { color:#f87171; border-color:rgba(244,100,110,.5); background:rgba(244,100,110,.12); transform:scale(1.12); }
+    .search-heart.active { color:#f87171; border-color:rgba(244,100,110,.45); background:rgba(244,100,110,.1); }
 
     /* ==================== BATCH ADD MODAL ==================== */
     .batch-modal {
@@ -1914,10 +1937,17 @@
     function renderSearchCard(c, i) {
       const rarClass = getRarityClass(c.rarity);
       const isSelected = selectedSearchCards.some(s => s.card_id === c.card_id);
+      const owned = cards.find(card => card.card_id === c.card_id);
+      const inWishlist = owned?.wishlist;
+      const inCollection = owned && !owned.wishlist;
+      const p = c.pricing || {};
+      const sugPrice = p.averageSellPrice || p.lowPrice || p.trendPrice || null;
       return `<div class="card-item${isSelected ? ' search-selected' : ''}" onclick="openAdd(lastSearchResults[${i}])">
         <div class="card-check" onclick="toggleSearchCard(${i},event)">${isSelected ? '✓' : '○'}</div>
+        ${inCollection ? `<div class="search-owned-badge" title="Na coleção (${owned.quantity}×)">✓ ${owned.quantity}×</div>` : ''}
         <div class="card-img-wrap">
           <img src="${c.image_small}" alt="${c.name}" loading="lazy">
+          ${!inCollection ? `<button class="search-heart${inWishlist ? ' active' : ''}" onclick="toggleSearchWishlist(${i},event)" title="${inWishlist ? 'Remover da lista de desejos' : 'Adicionar à lista de desejos'}">♥</button>` : ''}
         </div>
         <div class="card-body">
           <h4>${c.name}</h4>
@@ -1925,8 +1955,45 @@
             <span class="rarity-dot ${rarClass}"></span>
             ${c.number} · ${c.set_name}
           </div>
+          ${sugPrice ? `<div class="card-prices"><span class="cp-value" style="font-size:.73em">~R$ ${(+sugPrice).toFixed(2)}</span></div>` : ''}
         </div>
       </div>`;
+    }
+
+    async function toggleSearchWishlist(i, event) {
+      event.stopPropagation();
+      const c = lastSearchResults[i];
+      const owned = cards.find(card => card.card_id === c.card_id);
+      try {
+        if (owned?.wishlist) {
+          await fetch(`${API}/cards/${owned.id}`, { method: 'DELETE' });
+          toast('💔 Removido da lista de desejos');
+        } else {
+          const p = c.pricing || {};
+          const sugPrice = p.averageSellPrice || p.lowPrice || p.trendPrice || null;
+          const resp = await fetch(`${API}/cards`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...c, quantity: 1, wishlist: 1 })
+          });
+          if (!resp.ok) { toast('❌ Erro ao adicionar', true); return; }
+          const saved = await resp.json();
+          if (saved?.id) {
+            const patchBody = { language: 'en', wishlist: 1 };
+            if (sugPrice) patchBody.value = sugPrice;
+            await fetch(`${API}/cards/${saved.id}`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(patchBody)
+            });
+          }
+          toast('❤️ Adicionado à lista de desejos!');
+        }
+        await loadCards(true);
+        loadStats();
+        if (lastSearchResults.length) {
+          document.getElementById('searchResults').innerHTML = lastSearchResults.map((card, j) => renderSearchCard(card, j)).join('');
+          lucide.createIcons();
+        }
+      } catch(e) { toast('❌ Erro', true); }
     }
 
     function toggleSearchCard(i, event) {
@@ -2121,7 +2188,7 @@
     function openBatchAdd(wishlist) {
       if (!selectedSearchCards.length) return;
       batchWishlist = !!wishlist;
-      batchItems = selectedSearchCards.map(c => ({ card: c, savedQty: 1, savedPrice: '', savedValue: '' }));
+      batchItems = selectedSearchCards.map(c => ({ card: c, savedQty: 1, savedPrice: '', savedValue: '', savedTarget: '' }));
       document.getElementById('batchWishlistToggle').classList.toggle('on', batchWishlist);
       document.getElementById('batchLang').value = 'en';
       renderBatchList();
@@ -2130,9 +2197,10 @@
     }
 
     function toggleBatchWishlist() {
+      syncBatchItemsFromDom();
       batchWishlist = !batchWishlist;
       document.getElementById('batchWishlistToggle').classList.toggle('on', batchWishlist);
-      lucide.createIcons();
+      renderBatchList();
     }
 
     function syncBatchItemsFromDom() {
@@ -2223,8 +2291,10 @@
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...card, quantity: qty, wishlist })
           });
+          if (!resp.ok) { toast(`❌ Erro ao adicionar ${card.name}`, true); continue; }
           const saved = await resp.json();
-          const patchBody = { language: lang };
+          if (!saved?.id) { toast(`❌ Resposta inválida para ${card.name}`, true); continue; }
+          const patchBody = { language: lang, wishlist };
           if (price) patchBody.paid = price;
           if (value) patchBody.value = value;
           if (target) patchBody.value = target;

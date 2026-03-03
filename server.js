@@ -307,43 +307,49 @@ app.get(`${BASE_PATH}/api/cards`, (req, res) => {
 });
 
 app.post(`${BASE_PATH}/api/cards`, (req, res) => {
-  const { card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, quantity, purchase_id, price, wishlist } = req.body;
-  const fullData = JSON.stringify(req.body);
-  const isWishlist = wishlist ? 1 : 0;
+  try {
+    const { card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, quantity, purchase_id, price, wishlist } = req.body;
+    if (!card_id) return res.status(400).json({ error: 'card_id obrigatório' });
+    const fullData = JSON.stringify(req.body);
+    const isWishlist = wishlist ? 1 : 0;
 
-  const existing = db.prepare('SELECT * FROM cards WHERE card_id = ?').get(card_id);
-  let cardDbId;
+    const existing = db.prepare('SELECT * FROM cards WHERE card_id = ?').get(card_id);
+    let cardDbId;
 
-  if (existing) {
-    db.prepare('UPDATE cards SET quantity = quantity + ?, full_data = ? WHERE id = ?').run(quantity||1, fullData, existing.id);
-    cardDbId = existing.id;
-  } else {
-    const r = db.prepare(`INSERT INTO cards (card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, full_data, quantity, wishlist)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(card_id, name, number, set_id, set_name, rarity||'', types||'', image_small||'', image_large||'', fullData, quantity||1, isWishlist);
-    cardDbId = r.lastInsertRowid;
-  }
-
-  // Adiciona entrada de compra se fornecido
-  if (price !== undefined || purchase_id) {
-    let finalPrice = parseFloat(price) || 0;
-    let priceMode = 'manual';
-    
-    if (purchase_id) {
-      const purchase = db.prepare('SELECT * FROM purchases WHERE id = ?').get(purchase_id);
-      const cardsInPurchase = db.prepare('SELECT COALESCE(SUM(quantity),0) as t FROM card_purchases WHERE purchase_id = ?').get(purchase_id).t;
-      finalPrice = purchase.price / (cardsInPurchase + (quantity || 1));
-      priceMode = 'auto';
+    if (existing) {
+      db.prepare('UPDATE cards SET quantity = quantity + ?, full_data = ? WHERE id = ?').run(quantity||1, fullData, existing.id);
+      cardDbId = existing.id;
+    } else {
+      const r = db.prepare(`INSERT INTO cards (card_id, name, number, set_id, set_name, rarity, types, image_small, image_large, full_data, quantity, wishlist)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(card_id, name, number, set_id, set_name, rarity||'', types||'', image_small||'', image_large||'', fullData, quantity||1, isWishlist);
+      cardDbId = r.lastInsertRowid;
     }
-    
-    db.prepare(`
-      INSERT INTO card_purchases (card_id, purchase_id, price, price_mode, quantity)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(cardDbId, purchase_id || null, finalPrice, priceMode, quantity || 1);
-  }
 
-  const updated = db.prepare('SELECT * FROM cards WHERE id = ?').get(cardDbId);
-  try { updated.full_data = JSON.parse(updated.full_data); } catch {}
-  res.json(updated);
+    // Adiciona entrada de compra se fornecido (só quando price foi explicitamente enviado e não é null)
+    if (price != null || purchase_id) {
+      let finalPrice = parseFloat(price) || 0;
+      let priceMode = 'manual';
+
+      if (purchase_id) {
+        const purchase = db.prepare('SELECT * FROM purchases WHERE id = ?').get(purchase_id);
+        const cardsInPurchase = db.prepare('SELECT COALESCE(SUM(quantity),0) as t FROM card_purchases WHERE purchase_id = ?').get(purchase_id).t;
+        finalPrice = purchase.price / (cardsInPurchase + (quantity || 1));
+        priceMode = 'auto';
+      }
+
+      db.prepare(`
+        INSERT INTO card_purchases (card_id, purchase_id, price, price_mode, quantity)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(cardDbId, purchase_id || null, finalPrice, priceMode, quantity || 1);
+    }
+
+    const updated = db.prepare('SELECT * FROM cards WHERE id = ?').get(cardDbId);
+    try { updated.full_data = JSON.parse(updated.full_data); } catch {}
+    res.json(updated);
+  } catch(e) {
+    console.error('POST /api/cards error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.patch(`${BASE_PATH}/api/cards/:id`, (req, res) => {
